@@ -1,4 +1,4 @@
-import { generateHmac } from '@youpi/common';
+import { generateHmac, serviceAuthHeaders } from '@youpi/common';
 
 export class PaymentObserverClient {
   /**
@@ -42,7 +42,7 @@ export class PaymentObserverClient {
 
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...serviceAuthHeaders() },
       body: JSON.stringify(payload)
     });
 

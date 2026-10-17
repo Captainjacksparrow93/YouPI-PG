@@ -9,9 +9,12 @@ export function startControlCenter(port = null, options = {}) {
   const server = new ControlCenterServer({ processManager });
   const rawServer = server.createServer();
 
+  // Unauthenticated process supervisor: loopback only. Remote access goes through the logged-in merchant admin.
+  const host = options.host || process.env.CONTROL_CENTER_HOST || '127.0.0.1';
+
   return new Promise(resolve => {
-    const instance = rawServer.listen(finalPort, () => {
-      console.log(`[Control Center] Supervisor listening on http://localhost:${finalPort}`);
+    const instance = rawServer.listen(finalPort, host, () => {
+      console.log(`[Control Center] Supervisor listening on http://${host}:${finalPort}`);
       resolve({
         server,
         processManager,

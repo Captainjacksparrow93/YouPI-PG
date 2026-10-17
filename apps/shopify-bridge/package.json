@@ -1,0 +1,14 @@
+{
+  "name": "shopify-bridge",
+  "version": "1.0.0",
+  "description": "Connects a Shopify store to YOUPI PG: creates UPI payment sessions for Shopify orders and marks them paid on verified YOUPI webhooks",
+  "type": "module",
+  "main": "./src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test src/__tests__/**/*.test.js"
+  },
+  "dependencies": {
+    "@youpi/common": "*"
+  }
+}

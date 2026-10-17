@@ -1,6 +1,6 @@
 import { HttpServer } from '../server.js';
 import { toPaise, toRupeesString, resolveRuntimeUrls, PaymentStatus } from '@youpi/common';
-import { isTerminalStatus, toPublicOutcome } from '@youpi/core';
+import { isTerminalStatus, toPublicOutcome, resolveSessionUtr, resolveMerchantOrderId } from '@youpi/core';
 
 /**
  * Registers merchant-facing payment routes.
@@ -31,10 +31,12 @@ export function registerPaymentRoutes(server, ctx) {
     const body = await HttpServer.parseBody(req);
     const idempotencyKey = req.headers['idempotency-key'] || body.idempotencyKey;
 
-    // Resolve merchant (default to first/demo merchant if none passed in header)
+    // Resolve merchant: an authenticated merchant API key always wins over caller-supplied IDs
     const merchantId = req.headers['x-merchant-id'] || body.merchantId;
     let merchant;
-    if (merchantId) {
+    if (req.auth?.merchant) {
+      merchant = req.auth.merchant;
+    } else if (merchantId) {
       merchant = ctx.merchantRepo.findById(merchantId);
     } else {
       merchant = ctx.merchantRepo.getDefault ? ctx.merchantRepo.getDefault() : (ctx.merchantRepo.findById('00000000-0000-0000-0000-000000000001') || ctx.merchantRepo.findAll()[0]);
@@ -64,6 +66,9 @@ export function registerPaymentRoutes(server, ctx) {
       }
     }
 
+    // The merchant's own order ID never changes; retries get an internal "-R####" attempt suffix.
+    const merchantOrderId = String(body.metadata?.merchantOrderId || body.orderId).replace(/-R\d+$/, '');
+
     // Check idempotency & active session state
     const existing = ctx.sessionRepo.findByOrderId(merchant.id, body.orderId);
     if (existing) {
@@ -72,6 +77,7 @@ export function registerPaymentRoutes(server, ctx) {
         HttpServer.json(res, 200, {
           paymentId: existing.id,
           orderId: existing.orderId,
+          merchantOrderId,
           amount: toRupeesString(existing.amountPaise),
           amountPaise: existing.amountPaise.toString(),
           currency: existing.currency,
@@ -116,6 +122,7 @@ export function registerPaymentRoutes(server, ctx) {
         HttpServer.json(res, 200, {
           paymentId: existing.id,
           orderId: existing.orderId,
+          merchantOrderId,
           amount: toRupeesString(existing.amountPaise),
           amountPaise: existing.amountPaise.toString(),
           currency: existing.currency,
@@ -214,6 +221,7 @@ export function registerPaymentRoutes(server, ctx) {
 
     const sessionMetadata = {
       ...(body.metadata || {}),
+      merchantOrderId,
       ...(receivingAccountSnapshot ? { receivingAccountSnapshot } : {})
     };
 
@@ -257,6 +265,7 @@ export function registerPaymentRoutes(server, ctx) {
     HttpServer.json(res, 201, {
       paymentId: session.id,
       orderId: session.orderId,
+      merchantOrderId,
       amount: toRupeesString(amountPaise),
       amountPaise: amountPaise.toString(),
       currency: session.currency,
@@ -281,10 +290,12 @@ export function registerPaymentRoutes(server, ctx) {
     HttpServer.json(res, 200, {
       paymentId: session.id,
       orderId: session.orderId,
+      merchantOrderId: resolveMerchantOrderId(session),
       amount: toRupeesString(session.amountPaise),
       amountPaise: session.amountPaise.toString(),
       currency: session.currency,
       status: publicStatus,
+      utr: session.status === PaymentStatus.SUCCESS ? resolveSessionUtr(ctx.db, session) : null,
       internalStatus: session.status,
       method: session.method,
       verificationLevel: session.verificationLevel || 0,
@@ -337,7 +348,9 @@ export function registerPaymentRoutes(server, ctx) {
   server.get('/api/v1/orders/:orderId/cod', async (req, res, params) => {
     const merchantId = req.headers['x-merchant-id'] || req.query.merchantId;
     let merchant;
-    if (merchantId) {
+    if (req.auth?.merchant) {
+      merchant = req.auth.merchant;
+    } else if (merchantId) {
       merchant = ctx.merchantRepo.findById(merchantId);
     } else {
       merchant = ctx.merchantRepo.getDefault ? ctx.merchantRepo.getDefault() : (ctx.merchantRepo.findById('00000000-0000-0000-0000-000000000001') || ctx.merchantRepo.findAll()[0]);

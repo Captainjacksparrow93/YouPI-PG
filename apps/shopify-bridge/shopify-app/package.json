@@ -1,0 +1,16 @@
+{
+  "name": "youpi-shopify-app",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Shopify CLI project for the YouPI thank-you / order-status payment button. Not part of the npm workspaces; run `npm install` here.",
+  "scripts": {
+    "dev": "shopify app dev",
+    "deploy": "shopify app deploy"
+  },
+  "devDependencies": {
+    "@shopify/cli": "^3"
+  },
+  "workspaces": [
+    "extensions/*"
+  ]
+}

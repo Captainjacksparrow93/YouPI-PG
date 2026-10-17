@@ -1,5 +1,6 @@
 import { PaymentObserverClient } from '@youpi/observer-sdk';
 import { BankEmailParser } from './parser.js';
+import { serviceAuthHeaders } from '@youpi/common';
 
 function extractBodyFromGmailPayload(payload) {
   if (!payload) return '';
@@ -35,6 +36,30 @@ function extractBodyFromGmailPayload(payload) {
   return '';
 }
 
+/**
+ * Returns true when Gmail authenticated the sender: DMARC passed, or DKIM passed for the From
+ * domain (or a parent of it). Without this, anyone could email the merchant inbox with a forged
+ * "From: alerts@bank" header and a fake credit alert.
+ * @param {Array<{ name: string, value: string }>} headers
+ * @param {string} from
+ */
+export function isSenderAuthenticated(headers, from) {
+  const addr = (/<([^>]+)>/.exec(from)?.[1] || from).trim().toLowerCase();
+  const fromDomain = addr.includes('@') ? addr.split('@').pop() : '';
+  if (!fromDomain) return false;
+
+  const results = headers
+    .filter(h => h.name.toLowerCase() === 'authentication-results' || h.name.toLowerCase() === 'arc-authentication-results')
+    .filter(h => /mx\.google\.com/i.test(h.value))
+    .map(h => h.value.toLowerCase());
+
+  return results.some(value => {
+    if (/\bdmarc=pass\b/.test(value) && value.includes(`header.from=${fromDomain}`)) return true;
+    const dkimDomains = [...value.matchAll(/dkim=pass[^;]*?header\.(?:i=@|d=)([a-z0-9.-]+)/g)].map(m => m[1]);
+    return dkimDomains.some(d => fromDomain === d || fromDomain.endsWith(`.${d}`));
+  });
+}
+
 export class GmailPoller {
   /**
    * @param {{
@@ -68,7 +93,7 @@ export class GmailPoller {
 
   async fetchCredentialsFromPaymentApi() {
     try {
-      const res = await fetch(`${this.apiBaseUrl}/api/v1/admin/gmail/credentials`);
+      const res = await fetch(`${this.apiBaseUrl}/api/v1/admin/gmail/credentials`, { headers: serviceAuthHeaders() });
       if (res.ok) {
         const data = await res.json();
         const conf = data.gmailConfig || data;
@@ -125,7 +150,7 @@ export class GmailPoller {
 
   async resolveActiveReceivingAccount() {
     try {
-      const res = await fetch(`${this.apiBaseUrl}/api/v1/pollers/active-window`, { signal: AbortSignal.timeout(1000) });
+      const res = await fetch(`${this.apiBaseUrl}/api/v1/pollers/active-window`, { headers: serviceAuthHeaders(), signal: AbortSignal.timeout(1000) });
       if (res.ok) {
         const data = await res.json();
         if (data.sessions && data.sessions.length > 0) {
@@ -246,6 +271,12 @@ export class GmailPoller {
           const subject = headers.find(h => h.name.toLowerCase() === 'subject')?.value || '';
           const dateStr = headers.find(h => h.name.toLowerCase() === 'date')?.value || '';
           const body = extractBodyFromGmailPayload(msgData.payload) || msgData.snippet || '';
+
+          if (!isSenderAuthenticated(headers, from)) {
+            console.warn(`[Gmail Observer] Ignoring message ${m.id} from "${from}": sender failed DKIM/DMARC authentication.`);
+            this.processedMessageIds.add(m.id);
+            continue;
+          }
 
           await this.processEmail({
             id: m.id,

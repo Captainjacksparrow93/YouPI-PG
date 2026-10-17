@@ -45,6 +45,14 @@
 
 <br/>
 
+## 🔐 Before You Take Real Money
+
+- **Access control is on by default.** Admin, observer and payment-creation APIs need credentials that are
+  generated into `data/.youpi-secrets.json` on first start (or set via `YOUPI_*` env vars). Payments must be
+  created **server-side** with the merchant secret key. See [docs/SECURITY_REVIEW.md](docs/SECURITY_REVIEW.md).
+- **Shopify:** [docs/SHOPIFY_INTEGRATION.md](docs/SHOPIFY_INTEGRATION.md) (`apps/shopify-bridge`).
+- **Licence & compliance:** read the "Not fixed in code" section of the security review first.
+
 ## 🎬 Live Product Demos
 
 See **YOUPI PG V2** live in action across Desktop and Mobile checkout flows:

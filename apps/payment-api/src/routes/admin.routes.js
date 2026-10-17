@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { HttpServer } from '../server.js';
-import { PaymentStatus, PaymentMethod, SellingMode, AuditActorType, isValidVpa, toRupeesString, deriveCloudflareRoutes, resolveRuntimeUrls } from '@youpi/common';
+import { PaymentStatus, PaymentMethod, SellingMode, AuditActorType, isValidVpa, toRupeesString, deriveCloudflareRoutes, resolveRuntimeUrls, hashApiKey } from '@youpi/common';
 import { PaymentVerificationPipeline } from '@youpi/core';
 import { globalTunnelManager } from '../services/tunnel-manager.js';
 import { formatQrDataUrl } from '../services/whatsapp-berry.service.js';
@@ -104,6 +104,43 @@ export function registerAdminRoutes(server, ctx) {
       ? ctx.merchantRepo.getDefault()
       : (ctx.merchantRepo.findById('00000000-0000-0000-0000-000000000001') || ctx.merchantRepo.findAll()[0]);
   };
+
+  // POST /api/v1/admin/api-keys/rotate (Issues a new merchant secret API key; shown once, stored hashed)
+  server.post('/api/v1/admin/api-keys/rotate', async (req, res) => {
+    const body = await HttpServer.parseBody(req).catch(() => ({}));
+    const merchant = resolveMerchant(req, body.merchantId);
+    if (!merchant) {
+      HttpServer.json(res, 404, { error: 'Merchant not found' });
+      return;
+    }
+
+    const secretKey = `sk_live_${crypto.randomBytes(24).toString('hex')}`;
+    ctx.merchantRepo.update(merchant.id, {
+      branding: {
+        ...(merchant.branding || {}),
+        apiKeyHash: hashApiKey(secretKey),
+        apiKeyLast4: secretKey.slice(-4),
+        apiKeyRotatedAt: new Date().toISOString()
+      }
+    });
+
+    if (ctx.auditRepo) {
+      ctx.auditRepo.log({
+        merchantId: merchant.id,
+        entityType: 'MERCHANT',
+        entityId: merchant.id,
+        action: 'MERCHANT_API_KEY_ROTATED',
+        actorType: 'ADMIN',
+        details: { last4: secretKey.slice(-4) }
+      });
+    }
+
+    HttpServer.json(res, 201, {
+      merchantId: merchant.id,
+      secretKey,
+      message: 'Store this key on your server now. It will not be shown again.'
+    });
+  });
 
   // GET /api/v1/admin/queue
   server.get('/api/v1/admin/queue', async (req, res) => {
@@ -1418,7 +1455,7 @@ export function registerAdminRoutes(server, ctx) {
     const branding = merchant?.branding || {};
     const gmailConfig = branding.gmailConfig || {};
 
-    const redirectUri = 'https://pay-gmail.gauravtesting.online/oauth/callback';
+    const redirectUri = (process.env.GMAIL_REDIRECT_URI || 'http://localhost:6003/oauth/callback');
     const hasToken = Boolean(gmailConfig.refreshToken && gmailConfig.refreshToken.trim());
 
     HttpServer.json(res, 200, {
@@ -1461,7 +1498,7 @@ export function registerAdminRoutes(server, ctx) {
       });
       return;
     }
-    const redirectUri = 'https://pay-gmail.gauravtesting.online/oauth/callback';
+    const redirectUri = (process.env.GMAIL_REDIRECT_URI || 'http://localhost:6003/oauth/callback');
     const scopes = encodeURIComponent('https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/userinfo.email');
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scopes}&access_type=offline&prompt=consent&include_granted_scopes=true`;
 
