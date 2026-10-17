@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BrowserLauncher } from '@youpi/observer-sdk';
 import { BankEmailParser } from './parser.js';
+import { serviceAuthHeaders } from '@youpi/common';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -39,7 +40,7 @@ export class GmailBrowserAutomator {
 
   async fetchActivePaymentAmounts() {
     try {
-      const res = await fetch(`${this.apiBaseUrl}/api/v1/pollers/active-window`, { signal: AbortSignal.timeout(1500) });
+      const res = await fetch(`${this.apiBaseUrl}/api/v1/pollers/active-window`, { headers: serviceAuthHeaders(), signal: AbortSignal.timeout(1500) });
       if (res.ok) {
         const data = await res.json();
         return data.sessions || [];

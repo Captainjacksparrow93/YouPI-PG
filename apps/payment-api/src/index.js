@@ -40,6 +40,7 @@ import {
   PaymentVerificationPipeline
 } from '@youpi/core';
 import { HttpServer } from './server.js';
+import { createRouteGuard } from './auth.js';
 import { registerPaymentRoutes } from './routes/payments.routes.js';
 import { registerCheckoutRoutes } from './routes/checkout.routes.js';
 import { registerPollerRoutes } from './routes/pollers.routes.js';
@@ -112,6 +113,7 @@ export function createPaymentApp(customDb = null, options = {}) {
   });
 
   const server = new HttpServer();
+  server.setGuard(createRouteGuard({ merchantRepo }));
   let checkoutBaseUrl = process.env.BASE_CHECKOUT_URL || 'http://localhost:7000';
   try {
     const rootEnv = path.resolve(__dirname, '../../../.env');
@@ -383,6 +385,22 @@ export function createPaymentApp(customDb = null, options = {}) {
 
   if (aggressivePollerDaemon.unref) aggressivePollerDaemon.unref();
 
+  // Retry failed merchant webhook deliveries (5s, 30s, 2m, 10m, 1h backoff)
+  let webhookRetryRunning = false;
+  const webhookRetryDaemon = setInterval(async () => {
+    if (webhookRetryRunning) return;
+    webhookRetryRunning = true;
+    try {
+      await webhookEngine.retryPending();
+    } catch (err) {
+      console.error('[Webhook Retry] Error:', err.message);
+    } finally {
+      webhookRetryRunning = false;
+    }
+  }, 5000);
+
+  if (webhookRetryDaemon.unref) webhookRetryDaemon.unref();
+
   // Execute crash recovery on boot
   const recoveryStats = recoveryEngine.recover();
 
@@ -443,6 +461,7 @@ export function createPaymentApp(customDb = null, options = {}) {
   function destroy() {
     clearInterval(queueSyncDaemon);
     clearInterval(aggressivePollerDaemon);
+    clearInterval(webhookRetryDaemon);
     for (const timer of activeSweepTimers) {
       clearInterval(timer);
     }

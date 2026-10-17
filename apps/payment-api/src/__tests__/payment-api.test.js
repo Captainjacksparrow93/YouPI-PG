@@ -1,3 +1,4 @@
+import '../../../../scripts/test-env.js';
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -764,6 +765,8 @@ describe('Payment API End-to-End HTTP Integration Tests', () => {
       assert.equal(webhookDeliveries[0].body.event, 'SUCCESS');
       assert.equal(webhookDeliveries[0].body.orderId, 'AUTODETECT-ORD-777');
       assert.equal(webhookDeliveries[0].body.amount, '320.00');
+      assert.equal(webhookDeliveries[0].body.utr, 'UTR-NOCLICK-999');
+      assert.equal(checkAfterObs1.body.utr, 'UTR-NOCLICK-999');
 
       // 6. Channel 2: Gmail credit notification arrives 500ms later during verification sweep
       const obs2 = await request('/api/v1/pollers/events', {

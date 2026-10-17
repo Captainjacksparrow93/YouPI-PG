@@ -1,0 +1,23 @@
+# Shopify CLI app config for the YouPI bridge. Replace every bridge.example.com with your
+# bridge's public HTTPS URL (SHOPIFY_BRIDGE_URL) and client_id with your app's Client ID.
+client_id = "REPLACE_WITH_SHOPIFY_CLIENT_ID"
+name = "YouPI UPI Payments"
+application_url = "https://bridge.example.com/health"
+embedded = false
+
+[access_scopes]
+scopes = "read_orders,write_orders"
+
+[auth]
+redirect_urls = ["https://bridge.example.com/shopify/callback"]
+
+[webhooks]
+api_version = "2026-07"
+
+  [[webhooks.subscriptions]]
+  topics = ["orders/create"]
+  uri = "https://bridge.example.com/shopify/webhooks/orders-create"
+
+  [[webhooks.subscriptions]]
+  topics = ["app/uninstalled"]
+  uri = "https://bridge.example.com/shopify/webhooks/app-uninstalled"

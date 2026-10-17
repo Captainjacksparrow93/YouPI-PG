@@ -2,6 +2,39 @@ import crypto from 'node:crypto';
 import { generateHmac, toRupeesString } from '@youpi/common';
 import { isTerminalStatus, toPublicOutcome } from './state-machine.js';
 
+/**
+ * Looks up the bank UTR (reference number) of the observation that settled a session.
+ * @param {import('@youpi/db').Database} db
+ * @param {any} session
+ * @returns {string | null}
+ */
+export function resolveSessionUtr(db, session) {
+  if (!db || !session) return null;
+  try {
+    const row = session.attributedObservationId
+      ? db.queryOne('SELECT bank_reference_number FROM payment_observations WHERE id = ?', [session.attributedObservationId])
+      : null;
+    if (row?.bank_reference_number) return row.bank_reference_number;
+
+    const fallback = db.queryOne(`
+      SELECT bank_reference_number FROM payment_observations
+      WHERE attributed_payment_id = ? AND bank_reference_number IS NOT NULL AND bank_reference_number != ''
+      ORDER BY observed_at ASC LIMIT 1
+    `, [session.id]);
+    return fallback?.bank_reference_number || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The merchant's original order ID. Retries are stored internally as "<orderId>-R####".
+ * @param {any} session
+ */
+export function resolveMerchantOrderId(session) {
+  return session?.metadata?.merchantOrderId || String(session?.orderId || '').replace(/-R\d+$/, '');
+}
+
 export class WebhookEngine {
   /**
    * @param {{
@@ -33,11 +66,13 @@ export class WebhookEngine {
     const payloadObj = {
       event: publicOutcome,
       paymentId: session.id,
-      orderId: session.orderId,
+      orderId: resolveMerchantOrderId(session),
+      attemptOrderId: session.orderId,
       amount: toRupeesString(session.amountPaise),
       amountPaise: Number(session.amountPaise),
       currency: session.currency || 'INR',
       method: session.method || 'UPI',
+      utr: resolveSessionUtr(this.db, session),
       completedAt: session.completedAt ? session.completedAt.toISOString() : new Date().toISOString(),
       metadata: session.metadata || {}
     };

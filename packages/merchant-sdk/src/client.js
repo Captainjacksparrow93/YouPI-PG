@@ -5,12 +5,15 @@ export class YoupiPaymentClient {
    * @param {{
    *   apiUrl?: string,
    *   merchantId?: string,
+   *   secretKey?: string,
    *   webhookSecret?: string
    * }} options
    */
   constructor(options = {}) {
     this.apiUrl = (options.apiUrl || process.env.BASE_PAYMENT_API_URL || 'http://localhost:6100').replace(/\/+$/, '');
     this.merchantId = options.merchantId || null;
+    // Merchant secret API key (server-side only). Required to create payments.
+    this.secretKey = options.secretKey || process.env.YOUPI_MERCHANT_SECRET_KEY || null;
     this.webhookSecret = options.webhookSecret || null;
   }
 
@@ -43,6 +46,9 @@ export class YoupiPaymentClient {
 
     if (this.merchantId) {
       headers['X-Merchant-Id'] = this.merchantId;
+    }
+    if (this.secretKey) {
+      headers.Authorization = `Bearer ${this.secretKey}`;
     }
     if (params.idempotencyKey) {
       headers['Idempotency-Key'] = params.idempotencyKey;

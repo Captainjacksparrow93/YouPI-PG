@@ -145,6 +145,13 @@ export class CheckoutServer {
         return;
       }
 
+      // The checkout portal is customer-facing: never expose admin or internal observer routes through it.
+      if (pathname.startsWith('/api/v1/admin/') || pathname === '/api/v1/pollers/events' || pathname === '/api/v1/pollers/active-window') {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Not found' }));
+        return;
+      }
+
       // Transparent API Proxy: /api/* -> Payment Core REST API
       if (pathname.startsWith('/api/')) {
         const targetPort = Number(process.env.PAYMENT_API_PORT || 6100);

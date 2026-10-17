@@ -1,3 +1,4 @@
+import '../../../../scripts/test-env.js';
 import { test, describe, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -48,6 +49,9 @@ describe('Feature 65: Developer Payment Simulator Integration & Acceptance Suite
       };
       if (options.merchantAuth !== false && !headers['x-merchant-id']) {
         headers['x-merchant-id'] = merchantId;
+      }
+      if (options.merchantAuth === false) {
+        headers['x-test-anonymous'] = '1';
       }
 
       const req = http.request(url, {
@@ -104,7 +108,7 @@ describe('Feature 65: Developer Payment Simulator Integration & Acceptance Suite
     assert.equal(unauthRes.status, 401);
     assert.equal(unauthRes.body.success, false);
 
-    // 2. Customer token without merchant auth -> 403
+    // 2. Customer token is not admin auth -> 401
     const cust = customerRepo.create({
       merchantId,
       name: 'Regular Customer',
@@ -122,7 +126,7 @@ describe('Feature 65: Developer Payment Simulator Integration & Acceptance Suite
         'Authorization': `Bearer ${custToken}`
       }
     });
-    assert.equal(custRes.status, 403);
+    assert.equal(custRes.status, 401);
     assert.equal(custRes.body.success, false);
   });
 

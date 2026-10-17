@@ -20,7 +20,8 @@
     "test": "node scripts/test-all.js",
     "test:all": "node scripts/test-all.js",
     "test:acceptance": "node --test scripts/production-infrastructure.test.js",
-    "typecheck": "tsc -b --noEmit"
+    "typecheck": "tsc -b --noEmit",
+    "start:shopify-bridge": "node apps/shopify-bridge/src/index.js"
   },
   "devDependencies": {
     "@types/node": "^22.13.0",

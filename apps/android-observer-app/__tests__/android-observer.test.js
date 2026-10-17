@@ -1,9 +1,10 @@
+import '../../../scripts/test-env.js';
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { Database } from '@youpi/db';
 import { startServer as startPaymentApi } from '../../../apps/payment-api/src/index.js';
 import { AndroidObserverDriver } from '../driver.js';
-import { PaymentStatus } from '@youpi/common';
+import { PaymentStatus, androidEnrollmentSecret } from '@youpi/common';
 
 describe('Android Payment Observer Integration Tests', () => {
   let apiInstance;
@@ -34,7 +35,7 @@ describe('Android Payment Observer Integration Tests', () => {
   });
 
   test('successfully pairs Android device with valid enrollment token', async () => {
-    const enrollmentSecret = process.env.ANDROID_ENROLLMENT_SECRET || 'android_pairing_enrollment_secret_key_32_chars';
+    const enrollmentSecret = androidEnrollmentSecret();
     const pairResult = await driver.pair(enrollmentSecret);
 
     assert.ok(pairResult.paired);

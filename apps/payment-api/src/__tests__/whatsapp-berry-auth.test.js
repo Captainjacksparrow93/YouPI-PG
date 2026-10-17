@@ -1,3 +1,4 @@
+import '../../../../scripts/test-env.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createPaymentApp } from '../index.js';

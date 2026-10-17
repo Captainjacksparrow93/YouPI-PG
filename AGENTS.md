@@ -52,6 +52,27 @@ Place the script tag in the page's HTML `<head>` or `<body>`:
 - When running locally, `<youpi-checkout-host>` is `http://localhost:7000`.
 - In production, it is your canonical checkout portal domain (e.g., `https://pay.yourdomain.com`).
 
+### Step 1b: Create the payment on your server (required)
+
+`POST /api/v1/payments` requires the merchant **secret** key. Browsers cannot create payments
+(otherwise anyone could pick the amount). Create the session from your backend, then hand the
+`paymentId` to the page:
+
+```bash
+curl -X POST https://<youpi-api-host>/api/v1/payments \
+  -H "Authorization: Bearer $YOUPI_MERCHANT_SECRET_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"orderId":"ORDER-1001","amount":"499.00","metadata":{"sku":"TSHIRT-01"}}'
+# -> { "paymentId": "...", "orderId": "ORDER-1001", "merchantOrderId": "ORDER-1001", "checkoutUrl": "..." }
+```
+
+Then open it with `Youpi.pay({ paymentId })` or `<button data-youpi-pay data-payment-id="...">`.
+If a previous attempt for the same order failed or expired, YOUPI creates a new attempt whose
+`orderId` gets an `-R####` suffix; `merchantOrderId` (and the webhook `orderId`) always stays your original ID.
+
+> The amount-only browser flow below works only when the gateway runs with
+> `YOUPI_ALLOW_PUBLIC_PAYMENT_CREATE=true` (demo/legacy; never in production).
+
 ### Step 2: One-Button Zero-JS Configuration
 Tag any clickable button with `data-youpi-pay`:
 
@@ -149,6 +170,7 @@ The frontend script emits normalized DOM `CustomEvent`s on `window`:
   "event": "SUCCESS",
   "paymentId": "c7942127-14e3-469a-9e4a-9359a16f903a",
   "orderId": "ORDER-1001",
+  "attemptOrderId": "ORDER-1001-R4821",
   "amount": "499.00",
   "amountPaise": 49900,
   "currency": "INR",
@@ -297,6 +319,9 @@ func youpiWebhookHandler(w http.ResponseWriter, r *http.Request) {
 2. **Never Expose Secret API Keys in Frontend**:
    - Only publishable public keys (e.g., `data-youpi-key`) may appear in HTML/JS.
    - `webhookSecret`, database credentials, and observer tokens must remain strictly on the backend.
+   - Access levels enforced by the payment API (`apps/payment-api/src/auth.js`): merchant secret key for
+     creating payments and order lookups; admin token for `/api/v1/admin/*`; service token for observer
+     ingest; simulators exist only with `YOUPI_ENABLE_DEV_TOOLS=true` and an admin token.
 3. **Idempotency & Deduplication**:
    - Webhook deliveries include unique `X-Gateway-Delivery-Id` and `orderId`. Merchants must ensure their webhook processing is idempotent.
 4. **Preserve Customer Metadata**:
@@ -314,3 +339,4 @@ func youpiWebhookHandler(w http.ResponseWriter, r *http.Request) {
 | **Merchant Admin** | `6001` | Dashboard for slots, receiving VPAs, observers |
 | **SMS Observer** | `6002` | Android SMS banking webhook ingester |
 | **Gmail Observer** | `6003` | Push notification / Gmail observation ingester |
+| **Shopify Bridge** | `6200` | Shopify orders → YOUPI payments → `orderMarkAsPaid` |

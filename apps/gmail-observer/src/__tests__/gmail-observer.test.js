@@ -1,3 +1,4 @@
+import '../../../../scripts/test-env.js';
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -127,5 +128,25 @@ describe('Gmail Payment Observer Integration Tests', () => {
       const updated = apiInstance.app.context.sessionRepo.findById(session.id);
       assert.equal(updated.status, PaymentStatus.SUCCESS);
     });
+  });
+});
+
+describe('Gmail sender authentication', async () => {
+  const { isSenderAuthenticated } = await import('../gmail-poller.js');
+
+  test('Accepts DMARC/DKIM-authenticated bank mail and rejects spoofed From headers', () => {
+    const genuine = [{ name: 'Authentication-Results', value: 'mx.google.com; dkim=pass header.i=@hdfcbank.net header.s=s1; spf=pass smtp.mailfrom=alerts@hdfcbank.net; dmarc=pass (p=REJECT) header.from=hdfcbank.net' }];
+    assert.equal(isSenderAuthenticated(genuine, 'HDFC Bank <alerts@hdfcbank.net>'), true);
+
+    const subdomain = [{ name: 'Authentication-Results', value: 'mx.google.com; dkim=pass header.i=@hdfcbank.bank.in header.s=k1' }];
+    assert.equal(isSenderAuthenticated(subdomain, 'alerts@mail.hdfcbank.bank.in'), true);
+
+    const spoofed = [{ name: 'Authentication-Results', value: 'mx.google.com; dkim=pass header.i=@attacker.example; spf=pass; dmarc=fail header.from=hdfcbank.net' }];
+    assert.equal(isSenderAuthenticated(spoofed, 'alerts@hdfcbank.net'), false);
+
+    const forgedHeader = [{ name: 'Authentication-Results', value: 'evil.example; dkim=pass header.i=@hdfcbank.net; dmarc=pass header.from=hdfcbank.net' }];
+    assert.equal(isSenderAuthenticated(forgedHeader, 'alerts@hdfcbank.net'), false);
+
+    assert.equal(isSenderAuthenticated([], 'alerts@hdfcbank.net'), false);
   });
 });

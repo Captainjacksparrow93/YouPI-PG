@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { YoupiPaymentClient } from '@youpi/merchant-sdk';
+import { loadServiceSecrets } from '@youpi/common';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -161,8 +162,18 @@ export class CoinWalletStoreServer {
 
       // REVERSE PROXY: /api/v1/* -> Payment API (Port 6100 / gatewayApiUrl)
       if (pathname.startsWith('/api/v1/')) {
+        if (pathname.startsWith('/api/v1/admin/') || pathname.startsWith('/api/v1/pollers/')) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Not found' }));
+          return;
+        }
         try {
           const parsedGateway = new URL(this.gatewayApiUrl);
+          // This demo store acts as its own merchant backend: it attaches the secret key
+          // server-side when creating payments, so the key never reaches the browser.
+          const merchantAuth = (pathname === '/api/v1/payments' && method === 'POST')
+            ? { authorization: `Bearer ${loadServiceSecrets().merchantSecretKey}` }
+            : {};
           const proxyReq = http.request({
             hostname: parsedGateway.hostname || '127.0.0.1',
             port: Number(parsedGateway.port || process.env.PAYMENT_API_PORT || 6100),
@@ -170,6 +181,7 @@ export class CoinWalletStoreServer {
             method: req.method,
             headers: {
               ...req.headers,
+              ...merchantAuth,
               host: `${parsedGateway.hostname}:${parsedGateway.port}`,
               'x-forwarded-host': req.headers.host || '',
               'x-forwarded-proto': req.headers['x-forwarded-proto'] || 'http'

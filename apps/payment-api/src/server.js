@@ -8,6 +8,15 @@ export class HttpServer {
   constructor() {
     this.routes = [];
     this.sseClients = new Map(); // sessionId -> Set of res objects
+    this.guard = null;
+  }
+
+  /**
+   * Installs an access guard run before every route handler.
+   * @param {(req: any, res: any, method: string, pathname: string) => boolean} guard
+   */
+  setGuard(guard) {
+    this.guard = guard;
   }
 
   /**
@@ -116,7 +125,7 @@ export class HttpServer {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, Idempotency-Key, X-Device-Id, X-Timestamp, X-Signature'
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, Idempotency-Key, X-Device-Id, X-Timestamp, X-Signature, X-Merchant-Id'
     });
     res.end(jsonStr);
   }
@@ -158,7 +167,7 @@ export class HttpServer {
         res.writeHead(204, {
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization, Idempotency-Key, X-Device-Id, X-Timestamp, X-Signature'
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization, Idempotency-Key, X-Device-Id, X-Timestamp, X-Signature, X-Merchant-Id'
         });
         res.end();
         return;
@@ -167,6 +176,10 @@ export class HttpServer {
       const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
       const pathname = parsedUrl.pathname;
       const method = req.method.toUpperCase();
+
+      if (this.guard && !this.guard(req, res, method, pathname)) {
+        return;
+      }
 
       for (const route of this.routes) {
         if (route.method === method) {

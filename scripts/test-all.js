@@ -30,6 +30,8 @@ const testFiles = [
   'apps/payment-api/src/__tests__/whatsapp-berry-auth.test.js',
   'apps/payment-api/src/__tests__/whitelabel-branding.test.js',
   'apps/payment-api/src/__tests__/cod-parallel-timer-decoupling.test.js',
+  'apps/payment-api/src/__tests__/security-hardening.test.js',
+  'apps/shopify-bridge/src/__tests__/shopify-bridge.test.js',
   'scripts/chaos-concurrency.test.js',
   'scripts/production-infrastructure.test.js'
 ];
@@ -51,7 +53,13 @@ for (let i = 0; i < testFiles.length; i++) {
     env: {
       ...process.env,
       YOUPI_MODE: 'localhost',
-      NODE_ENV: 'test'
+      NODE_ENV: 'test',
+      YOUPI_ADMIN_TOKEN: 'test_admin_token_0000000000000000',
+      YOUPI_SERVICE_TOKEN: 'test_service_token_000000000000',
+      YOUPI_ADMIN_PASSWORD: 'test-admin-password',
+      YOUPI_MERCHANT_SECRET_KEY: 'sk_test_merchant_secret_key_0000',
+      ANDROID_ENROLLMENT_SECRET: 'test_android_enrollment_secret_000',
+      YOUPI_ENABLE_DEV_TOOLS: 'true'
     },
     encoding: 'utf8'
   });

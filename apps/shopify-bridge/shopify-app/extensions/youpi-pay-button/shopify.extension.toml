@@ -1,0 +1,28 @@
+api_version = "2026-07"
+
+[[extensions]]
+name = "YouPI pay button"
+handle = "youpi-pay-button"
+type = "ui_extension"
+
+  # Thank-you page right after checkout.
+  [[extensions.targeting]]
+  module = "./src/ThankYou.jsx"
+  target = "purchase.thank-you.block.render"
+
+  # Order status page in customer accounts (customer comes back later to pay).
+  [[extensions.targeting]]
+  module = "./src/OrderStatus.jsx"
+  target = "customer-account.order-status.block.render"
+
+  [extensions.capabilities]
+  # Needed to call the bridge. Request network access for the app in the Shopify Dev Dashboard.
+  network_access = true
+  api_access = false
+
+  [extensions.settings]
+    [[extensions.settings.fields]]
+    key = "bridge_url"
+    type = "single_line_text_field"
+    name = "YouPI bridge URL"
+    description = "Public HTTPS URL of your YouPI Shopify bridge, e.g. https://shopify-bridge.yourdomain.com"

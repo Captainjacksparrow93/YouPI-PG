@@ -1,3 +1,4 @@
+import '../../../../scripts/test-env.js';
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {
